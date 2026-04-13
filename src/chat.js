@@ -24,3 +24,36 @@ export function processToolCalls(response, executeToolFn) {
     content: executeToolFn(toolUse.name, toolUse.input),
   }));
 }
+
+export async function handleChatTurn({ client, model, systemPrompt, messages, tools, executeTool }) {
+  const conversationMessages = [...messages];
+
+  let response = await client.messages.create({
+    model,
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: conversationMessages,
+    tools,
+  });
+
+  conversationMessages.push({ role: 'assistant', content: response.content });
+
+  // Tool use loop: keep going while Claude wants to use tools
+  while (response.stop_reason === 'tool_use') {
+    const toolResults = processToolCalls(response, executeTool);
+
+    conversationMessages.push({ role: 'user', content: toolResults });
+
+    response = await client.messages.create({
+      model,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: conversationMessages,
+      tools,
+    });
+
+    conversationMessages.push({ role: 'assistant', content: response.content });
+  }
+
+  return { response, messages: conversationMessages };
+}
