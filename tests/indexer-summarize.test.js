@@ -1,27 +1,32 @@
 import { describe, it, expect, vi } from 'vitest';
 import { generateSummary } from '../src/indexer.js';
+import { execFile } from 'child_process';
+
+vi.mock('child_process', () => ({
+  execFile: vi.fn(),
+}));
 
 describe('generateSummary', () => {
-  it('calls Anthropic API and returns the summary text', async () => {
-    const mockClient = {
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          content: [{ type: 'text', text: 'A schedule for baby feeding times and formula prep.' }],
-        }),
-      },
-    };
+  it('calls claude --print and returns the summary text', async () => {
+    execFile.mockImplementation((cmd, args, opts, callback) => {
+      const child = {
+        stdin: { write: vi.fn(), end: vi.fn() },
+      };
+      // Simulate async callback
+      setTimeout(() => callback(null, 'A schedule for baby feeding times and formula prep.', ''), 0);
+      return child;
+    });
 
     const summary = await generateSummary(
-      mockClient,
-      'claude-sonnet-4-6-20250514',
-      'Matartími\n\nBarnið borðar á þessum tímum:\n- 07:00 morgunmatur\n- 12:00 hádegismatur'
+      'Matartími\n\nBarnið borðar á þessum tímum:\n- 07:00 morgunmatur'
     );
 
     expect(summary).toBe('A schedule for baby feeding times and formula prep.');
-    expect(mockClient.messages.create).toHaveBeenCalledOnce();
-
-    const callArgs = mockClient.messages.create.mock.calls[0][0];
-    expect(callArgs.model).toBe('claude-sonnet-4-6-20250514');
-    expect(callArgs.max_tokens).toBe(100);
+    expect(execFile).toHaveBeenCalledWith(
+      'claude',
+      ['--print'],
+      expect.any(Object),
+      expect.any(Function),
+    );
   });
 });

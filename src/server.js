@@ -2,10 +2,8 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import Anthropic from '@anthropic-ai/sdk';
 import { createDb } from './db.js';
 import { IndexManager } from './index-manager.js';
-import { getToolDefinitions, executeTool } from './tools.js';
 import { buildSystemPrompt, handleChatTurn } from './chat.js';
 import { loadConfig } from './config.js';
 
@@ -13,13 +11,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function createApp(options) {
   const {
-    apiKey,
     port,
     contentDir,
     dbPath = './data/babysitter.db',
     sessionTtlHours,
     kidsNames,
-    model,
   } = options;
 
   const app = express();
@@ -28,22 +24,19 @@ export async function createApp(options) {
   // Database
   const db = createDb(dbPath);
 
-  // Anthropic client
-  const client = new Anthropic({ apiKey });
-
   // Content index
-  const indexManager = new IndexManager(db, contentDir, client, model);
+  const indexManager = new IndexManager(db, contentDir);
   try {
     await indexManager.fullSync();
   } catch (err) {
-    console.warn('Warning: content index sync failed (may be a missing API key):', err.message);
+    console.warn('Warning: content index sync failed:', err.message);
   }
   indexManager.startWatching();
 
   // Static files: frontend
   app.use(express.static(path.join(__dirname, 'public')));
 
-  // Static files: content images only (not markdown — those contain sensitive info)
+  // Static files: content images only (not markdown)
   const imageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']);
   app.use('/content', (req, res, next) => {
     const ext = path.extname(req.path).toLowerCase();
@@ -84,33 +77,16 @@ export async function createApp(options) {
 
       const systemPrompt = buildSystemPrompt({
         kidsNames,
-        contentIndex: indexManager.getFormattedIndex(),
+        allContent: indexManager.getAllContent(),
       });
 
-      const tools = getToolDefinitions();
+      const result = await handleChatTurn({ systemPrompt, messages });
 
-      const result = await handleChatTurn({
-        client,
-        model,
-        systemPrompt,
-        messages,
-        tools,
-        executeTool: (name, input) => executeTool(name, input, contentDir),
-      });
+      // Save user message and assistant reply
+      db.appendMessage(req.sessionId, { role: 'user', content: message });
+      db.appendMessage(req.sessionId, { role: 'assistant', content: result.reply });
 
-      // Extract final text from response
-      const assistantText = result.response.content
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join('');
-
-      // Save all new messages (user + intermediate tool calls + final response)
-      const originalLength = session.messages.length;
-      for (let i = originalLength; i < result.messages.length; i++) {
-        db.appendMessage(req.sessionId, result.messages[i]);
-      }
-
-      res.json({ reply: assistantText });
+      res.json({ reply: result.reply });
     } catch (err) {
       console.error('Chat error:', err);
       res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.' });
@@ -120,7 +96,7 @@ export async function createApp(options) {
   // Session cleanup on interval
   const cleanupInterval = setInterval(() => {
     db.deleteExpiredSessions(sessionTtlHours);
-  }, 60 * 60 * 1000); // Every hour
+  }, 60 * 60 * 1000);
 
   // Start server
   const server = app.listen(port, () => {
@@ -160,12 +136,10 @@ if (isMain) {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
   createApp({
-    apiKey: config.apiKey,
     port: config.port,
     contentDir: config.contentDir,
     dbPath: path.join(dataDir, 'babysitter.db'),
     sessionTtlHours: config.sessionTtlHours,
     kidsNames: config.kidsNames,
-    model: config.model,
   });
 }

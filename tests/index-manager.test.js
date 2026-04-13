@@ -5,22 +5,25 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+// Mock generateSummary to avoid calling claude --print in tests
+vi.mock('../src/indexer.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    generateSummary: vi.fn().mockResolvedValue('Auto-generated summary.'),
+  };
+});
+
+import { generateSummary } from '../src/indexer.js';
+
 describe('IndexManager', () => {
   let tmpDir, dbPath, db, manager;
-
-  const mockAnthropicClient = {
-    messages: {
-      create: vi.fn().mockResolvedValue({
-        content: [{ type: 'text', text: 'Auto-generated summary.' }],
-      }),
-    },
-  };
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'idx-mgr-'));
     dbPath = path.join(tmpDir, 'test.db');
     db = createDb(dbPath);
-    manager = new IndexManager(db, tmpDir, mockAnthropicClient, 'claude-sonnet-4-6-20250514');
+    manager = new IndexManager(db, tmpDir);
   });
 
   afterEach(() => {
@@ -50,19 +53,17 @@ describe('IndexManager', () => {
 
     const entries = db.getAllIndexEntries();
     expect(entries[0].summary).toBe('My custom summary');
-    // AI should NOT have been called for this file
-    expect(mockAnthropicClient.messages.create).not.toHaveBeenCalled();
+    expect(generateSummary).not.toHaveBeenCalled();
   });
 
   it('skips files that have not changed since last index', async () => {
     fs.writeFileSync(path.join(tmpDir, 'stable.md'), '# Stable\n\nContent.');
     await manager.fullSync();
 
-    mockAnthropicClient.messages.create.mockClear();
+    generateSummary.mockClear();
     await manager.fullSync();
 
-    // Should not regenerate summary for unchanged file
-    expect(mockAnthropicClient.messages.create).not.toHaveBeenCalled();
+    expect(generateSummary).not.toHaveBeenCalled();
   });
 
   it('removes index entries for deleted files on full sync', async () => {
@@ -84,5 +85,14 @@ describe('IndexManager', () => {
     expect(formatted).toContain('info.md');
     expect(formatted).toContain('House Info');
     expect(formatted).toContain('Auto-generated summary.');
+  });
+
+  it('getAllContent returns full file contents', async () => {
+    fs.writeFileSync(path.join(tmpDir, 'info.md'), '---\ntags: [household]\n---\n# House Info\n\nImportant details here.');
+    await manager.fullSync();
+
+    const content = manager.getAllContent();
+    expect(content).toContain('House Info');
+    expect(content).toContain('Important details here.');
   });
 });

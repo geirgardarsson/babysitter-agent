@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
+import { execFile } from 'child_process';
 
 export function scanFile(filePath, contentDir) {
   const raw = fs.readFileSync(filePath, 'utf-8');
@@ -54,17 +55,23 @@ export function buildIndex(contentDir) {
   return entries;
 }
 
-export async function generateSummary(anthropicClient, model, content) {
-  const response = await anthropicClient.messages.create({
-    model,
-    max_tokens: 100,
-    messages: [
-      {
-        role: 'user',
-        content: `Summarize the following content in exactly one sentence (in English). This summary will be used as an index entry so a language model can decide whether to read the full file.\n\n${content}`,
-      },
-    ],
+export function generateSummary(content) {
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      'claude',
+      ['--print'],
+      { maxBuffer: 1024 * 1024, timeout: 60000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`claude --print failed: ${error.message}`));
+          return;
+        }
+        resolve(stdout.trim());
+      }
+    );
+    child.stdin.write(
+      `Summarize the following content in exactly one sentence (in English). This summary will be used as an index entry so a language model can decide whether to read the full file.\n\n${content}`
+    );
+    child.stdin.end();
   });
-
-  return response.content[0].text;
 }

@@ -1,13 +1,13 @@
+import fs from 'fs';
 import chokidar from 'chokidar';
 import path from 'path';
+import matter from 'gray-matter';
 import { scanFile, buildIndex, generateSummary } from './indexer.js';
 
 export class IndexManager {
-  constructor(db, contentDir, anthropicClient, model) {
+  constructor(db, contentDir) {
     this.db = db;
     this.contentDir = path.resolve(contentDir);
-    this.anthropicClient = anthropicClient;
-    this.model = model;
     this.watcher = null;
   }
 
@@ -22,9 +22,8 @@ export class IndexManager {
 
     // Generate summary if not provided in frontmatter
     if (!entry.summary) {
-      const fs = await import('fs');
       const content = fs.readFileSync(filePath, 'utf-8');
-      entry.summary = await generateSummary(this.anthropicClient, this.model, content);
+      entry.summary = await generateSummary(content);
     }
 
     this.db.upsertIndexEntry(entry);
@@ -92,5 +91,31 @@ export class IndexManager {
       if (e.images.length > 0) line += ` [images: ${e.images.join(', ')}]`;
       return line;
     }).join('\n');
+  }
+
+  /** Read all markdown files and return their full content, formatted for the system prompt */
+  getAllContent() {
+    const entries = this.db.getAllIndexEntries();
+    if (entries.length === 0) return 'No content files found.';
+
+    return entries.map(e => {
+      const fullPath = path.join(this.contentDir, e.filePath);
+      try {
+        const raw = fs.readFileSync(fullPath, 'utf-8');
+        const { content } = matter(raw);
+        let section = `## ${e.title} (${e.filePath})\n\n${content.trim()}`;
+        if (e.images.length > 0) {
+          section += `\n\nImages in this file: ${e.images.map(img => {
+            // Resolve image path relative to the file's directory
+            const fileDir = path.dirname(e.filePath);
+            const imgPath = path.join(fileDir, img);
+            return `/content/${imgPath}`;
+          }).join(', ')}`;
+        }
+        return section;
+      } catch {
+        return `## ${e.title} (${e.filePath})\n\n[File could not be read]`;
+      }
+    }).join('\n\n---\n\n');
   }
 }

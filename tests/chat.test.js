@@ -1,60 +1,49 @@
-import { describe, it, expect, vi } from 'vitest';
-import { buildSystemPrompt, processToolCalls } from '../src/chat.js';
+import { describe, it, expect } from 'vitest';
+import { buildSystemPrompt, buildConversationPrompt } from '../src/chat.js';
 
 describe('buildSystemPrompt', () => {
-  it('includes kids names, personality, and content index', () => {
+  it('includes kids names, personality, and content', () => {
     const prompt = buildSystemPrompt({
       kidsNames: ['Anna', 'Bjarki'],
-      contentIndex: '- **Matartími** (kids/baby/feeding.md): Feeding schedule for baby',
+      allContent: '## Matartími (kids/baby/feeding.md)\n\nFeeding schedule content',
     });
 
     expect(prompt).toContain('Anna');
     expect(prompt).toContain('Bjarki');
     expect(prompt).toContain('Matartími');
-    expect(prompt).toContain('kids/baby/feeding.md');
     expect(prompt).toContain('Icelandic');
   });
 
-  it('includes instructions to use tools before answering', () => {
+  it('includes image instructions', () => {
     const prompt = buildSystemPrompt({
       kidsNames: ['Anna'],
-      contentIndex: '- **Test** (test.md): Summary',
+      allContent: '## Test\n\nContent',
     });
 
-    expect(prompt).toContain('read_file');
+    expect(prompt).toContain('/content/');
+    expect(prompt).toContain('image');
   });
 });
 
-describe('processToolCalls', () => {
-  it('executes tool calls and returns tool results', () => {
-    const response = {
-      stop_reason: 'tool_use',
-      content: [
-        { type: 'text', text: 'Let me check that.' },
-        { type: 'tool_use', id: 'call_1', name: 'read_file', input: { path: 'test.md' } },
-      ],
-    };
+describe('buildConversationPrompt', () => {
+  it('formats conversation history', () => {
+    const messages = [
+      { role: 'user', content: 'Hæ' },
+      { role: 'assistant', content: 'Hæ! Hvernig get ég hjálpað?' },
+      { role: 'user', content: 'Hvenær borðar barnið?' },
+    ];
 
-    const mockExecute = vi.fn().mockReturnValue('# Test\n\nFile content.');
+    const prompt = buildConversationPrompt('system', messages);
 
-    const results = processToolCalls(response, mockExecute);
-
-    expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({
-      type: 'tool_result',
-      tool_use_id: 'call_1',
-      content: '# Test\n\nFile content.',
-    });
-    expect(mockExecute).toHaveBeenCalledWith('read_file', { path: 'test.md' });
+    expect(prompt).toContain('Human: Hæ');
+    expect(prompt).toContain('Assistant: Hæ! Hvernig get ég hjálpað?');
+    expect(prompt).toContain('Human: Hvenær borðar barnið?');
   });
 
-  it('returns empty array when no tool calls', () => {
-    const response = {
-      stop_reason: 'end_turn',
-      content: [{ type: 'text', text: 'Here is the answer.' }],
-    };
+  it('handles single message', () => {
+    const messages = [{ role: 'user', content: 'Hello' }];
+    const prompt = buildConversationPrompt('system', messages);
 
-    const results = processToolCalls(response, vi.fn());
-    expect(results).toEqual([]);
+    expect(prompt).toContain('Human: Hello');
   });
 });

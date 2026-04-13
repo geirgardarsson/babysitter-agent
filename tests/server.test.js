@@ -21,13 +21,11 @@ describe('server routes', () => {
     fs.writeFileSync(path.join(tmpDir, 'content', 'images', 'test.jpg'), 'fake-image-data');
 
     app = await createApp({
-      apiKey: 'sk-test-fake',
       port: 0,
       contentDir: path.join(tmpDir, 'content'),
       dbPath,
       sessionTtlHours: 24,
       kidsNames: ['Anna', 'Bjarki'],
-      model: 'claude-sonnet-4-6-20250514',
     });
   });
 
