@@ -48,13 +48,13 @@
       <form @submit.prevent="sendMessage">
         <input
           type="text"
-          x-model="input"
+          x-model="userInput"
           placeholder="Skrifaðu spurningu..."
           :disabled="loading"
-          x-ref="input"
+          x-ref="textbox"
           autocomplete="off"
         >
-        <button type="submit" :disabled="loading || !input.trim()">Senda</button>
+        <button type="submit" :disabled="loading || !userInput.trim()">Senda</button>
       </form>
     </footer>
   </div>

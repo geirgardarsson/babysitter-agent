@@ -1,20 +1,20 @@
 function chatApp() {
   return {
     messages: [],
-    input: '',
+    userInput: '',
     loading: false,
     subtitle: '',
     nextId: 1,
 
     init() {
-      this.$refs.input.focus();
+      this.$refs.textbox.focus();
     },
 
     async sendMessage() {
-      const text = this.input.trim();
+      const text = this.userInput.trim();
       if (!text || this.loading) return;
 
-      this.input = '';
+      this.userInput = '';
       this.messages.push({
         id: this.nextId++,
         role: 'user',
