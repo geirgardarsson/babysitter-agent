@@ -20,7 +20,6 @@
     "@anthropic-ai/sdk": "^0.88.0",
     "better-sqlite3": "^12.9.0",
     "chokidar": "^5.0.0",
-    "cookie": "^1.1.1",
     "express": "^5.2.1",
     "gray-matter": "^4.0.3",
     "uuid": "^13.0.0"

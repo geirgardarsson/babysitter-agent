@@ -15,7 +15,7 @@ export class IndexManager {
     const entry = scanFile(filePath, this.contentDir);
 
     // Check if file has changed since last index
-    const existing = this.db.getAllIndexEntries().find(e => e.filePath === entry.filePath);
+    const existing = this.db.getIndexEntry(entry.filePath);
     if (existing && existing.lastModified === entry.lastModified) {
       return; // No change
     }
@@ -56,11 +56,15 @@ export class IndexManager {
     });
 
     this.watcher.on('add', (filePath) => {
-      if (filePath.endsWith('.md')) this.indexFile(filePath);
+      if (filePath.endsWith('.md')) this.indexFile(filePath).catch(err => {
+        console.error(`Failed to index new file ${filePath}:`, err.message);
+      });
     });
 
     this.watcher.on('change', (filePath) => {
-      if (filePath.endsWith('.md')) this.indexFile(filePath);
+      if (filePath.endsWith('.md')) this.indexFile(filePath).catch(err => {
+        console.error(`Failed to re-index ${filePath}:`, err.message);
+      });
     });
 
     this.watcher.on('unlink', (filePath) => {

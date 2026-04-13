@@ -41,6 +41,19 @@ export function createDb(dbPath) {
       raw.prepare('DELETE FROM content_index WHERE file_path = ?').run(filePath);
     },
 
+    getIndexEntry(filePath) {
+      const row = raw.prepare('SELECT * FROM content_index WHERE file_path = ?').get(filePath);
+      if (!row) return null;
+      return {
+        filePath: row.file_path,
+        title: row.title,
+        summary: row.summary,
+        tags: JSON.parse(row.tags),
+        images: JSON.parse(row.images),
+        lastModified: row.last_modified,
+      };
+    },
+
     getAllIndexEntries() {
       const rows = raw.prepare('SELECT * FROM content_index ORDER BY file_path').all();
       return rows.map(row => ({
@@ -70,11 +83,9 @@ export function createDb(dbPath) {
     },
 
     appendMessage(sessionId, message) {
-      const session = this.getSession(sessionId);
-      if (!session) return;
-      const messages = [...session.messages, message];
-      raw.prepare('UPDATE sessions SET messages = ? WHERE id = ?')
-        .run(JSON.stringify(messages), sessionId);
+      raw.prepare(
+        "UPDATE sessions SET messages = json_insert(messages, '$[#]', json(?)) WHERE id = ?"
+      ).run(JSON.stringify(message), sessionId);
     },
 
     deleteExpiredSessions(ttlHours) {

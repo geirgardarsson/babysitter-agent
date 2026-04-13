@@ -43,8 +43,15 @@ export async function createApp(options) {
   // Static files: frontend
   app.use(express.static(path.join(__dirname, 'public')));
 
-  // Static files: content images
-  app.use('/content', express.static(path.resolve(contentDir)));
+  // Static files: content images only (not markdown — those contain sensitive info)
+  const imageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']);
+  app.use('/content', (req, res, next) => {
+    const ext = path.extname(req.path).toLowerCase();
+    if (!imageExts.has(ext)) {
+      return res.status(403).end('Forbidden');
+    }
+    next();
+  }, express.static(path.resolve(contentDir)));
 
   // Session middleware using cookies
   app.use((req, res, next) => {
@@ -67,7 +74,13 @@ export async function createApp(options) {
 
     try {
       const session = db.getSession(req.sessionId);
-      const messages = [...session.messages, { role: 'user', content: message }];
+      let history = session.messages;
+      // Cap conversation history to prevent unbounded context growth
+      const MAX_MESSAGES = 50;
+      if (history.length > MAX_MESSAGES) {
+        history = history.slice(-MAX_MESSAGES);
+      }
+      const messages = [...history, { role: 'user', content: message }];
 
       const systemPrompt = buildSystemPrompt({
         kidsNames,
@@ -91,9 +104,11 @@ export async function createApp(options) {
         .map(block => block.text)
         .join('');
 
-      // Save full conversation (with tool calls) to DB
-      db.appendMessage(req.sessionId, { role: 'user', content: message });
-      db.appendMessage(req.sessionId, { role: 'assistant', content: result.response.content });
+      // Save all new messages (user + intermediate tool calls + final response)
+      const originalLength = session.messages.length;
+      for (let i = originalLength; i < result.messages.length; i++) {
+        db.appendMessage(req.sessionId, result.messages[i]);
+      }
 
       res.json({ reply: assistantText });
     } catch (err) {

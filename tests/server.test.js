@@ -48,6 +48,11 @@ describe('server routes', () => {
     expect(res.status).toBe(200);
   });
 
+  it('blocks direct access to markdown files', async () => {
+    const res = await fetch(app.url + '/content/test.md');
+    expect(res.status).toBe(403);
+  });
+
   it('returns 404 for nonexistent content', async () => {
     const res = await fetch(app.url + '/content/nope.jpg');
     expect(res.status).toBe(404);
