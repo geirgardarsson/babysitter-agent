@@ -53,3 +53,18 @@ export function buildIndex(contentDir) {
   walk(contentDir);
   return entries;
 }
+
+export async function generateSummary(anthropicClient, model, content) {
+  const response = await anthropicClient.messages.create({
+    model,
+    max_tokens: 100,
+    messages: [
+      {
+        role: 'user',
+        content: `Summarize the following content in exactly one sentence (in English). This summary will be used as an index entry so a language model can decide whether to read the full file.\n\n${content}`,
+      },
+    ],
+  });
+
+  return response.content[0].text;
+}
