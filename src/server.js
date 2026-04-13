@@ -1,0 +1,156 @@
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { v4 as uuidv4 } from 'uuid';
+import Anthropic from '@anthropic-ai/sdk';
+import { createDb } from './db.js';
+import { IndexManager } from './index-manager.js';
+import { getToolDefinitions, executeTool } from './tools.js';
+import { buildSystemPrompt, handleChatTurn } from './chat.js';
+import { loadConfig } from './config.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export async function createApp(options) {
+  const {
+    apiKey,
+    port,
+    contentDir,
+    dbPath = './data/babysitter.db',
+    sessionTtlHours,
+    kidsNames,
+    model,
+  } = options;
+
+  const app = express();
+  app.use(express.json());
+
+  // Database
+  const db = createDb(dbPath);
+
+  // Anthropic client
+  const client = new Anthropic({ apiKey });
+
+  // Content index
+  const indexManager = new IndexManager(db, contentDir, client, model);
+  try {
+    await indexManager.fullSync();
+  } catch (err) {
+    console.warn('Warning: content index sync failed (may be a missing API key):', err.message);
+  }
+  indexManager.startWatching();
+
+  // Static files: frontend
+  app.use(express.static(path.join(__dirname, 'public')));
+
+  // Static files: content images
+  app.use('/content', express.static(path.resolve(contentDir)));
+
+  // Session middleware using cookies
+  app.use((req, res, next) => {
+    let sessionId = parseCookie(req.headers.cookie, 'session_id');
+    if (!sessionId || !db.getSession(sessionId)) {
+      sessionId = uuidv4();
+      db.createSession(sessionId);
+      res.setHeader('Set-Cookie', `session_id=${sessionId}; Path=/; HttpOnly; SameSite=Lax`);
+    }
+    req.sessionId = sessionId;
+    next();
+  });
+
+  // Chat endpoint
+  app.post('/api/chat', async (req, res) => {
+    const { message } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Message is required.' });
+    }
+
+    try {
+      const session = db.getSession(req.sessionId);
+      const messages = [...session.messages, { role: 'user', content: message }];
+
+      const systemPrompt = buildSystemPrompt({
+        kidsNames,
+        contentIndex: indexManager.getFormattedIndex(),
+      });
+
+      const tools = getToolDefinitions();
+
+      const result = await handleChatTurn({
+        client,
+        model,
+        systemPrompt,
+        messages,
+        tools,
+        executeTool: (name, input) => executeTool(name, input, contentDir),
+      });
+
+      // Extract final text from response
+      const assistantText = result.response.content
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('');
+
+      // Save full conversation (with tool calls) to DB
+      db.appendMessage(req.sessionId, { role: 'user', content: message });
+      db.appendMessage(req.sessionId, { role: 'assistant', content: result.response.content });
+
+      res.json({ reply: assistantText });
+    } catch (err) {
+      console.error('Chat error:', err);
+      res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.' });
+    }
+  });
+
+  // Session cleanup on interval
+  const cleanupInterval = setInterval(() => {
+    db.deleteExpiredSessions(sessionTtlHours);
+  }, 60 * 60 * 1000); // Every hour
+
+  // Start server
+  const server = app.listen(port, () => {
+    console.log(`Agent Babysitter running on port ${port}`);
+  });
+
+  await new Promise((resolve) => server.once('listening', resolve));
+
+  const address = server.address();
+  const resolvedPort = typeof address === 'object' ? address.port : port;
+
+  return {
+    app,
+    server,
+    url: `http://localhost:${resolvedPort}`,
+    cleanup() {
+      clearInterval(cleanupInterval);
+      indexManager.stopWatching();
+      server.close();
+      db.close();
+    },
+  };
+}
+
+function parseCookie(cookieHeader, name) {
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return match ? match[1] : null;
+}
+
+// Run directly
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+if (isMain) {
+  const config = loadConfig();
+  const dataDir = './data';
+  const fs = await import('fs');
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+
+  createApp({
+    apiKey: config.apiKey,
+    port: config.port,
+    contentDir: config.contentDir,
+    dbPath: path.join(dataDir, 'babysitter.db'),
+    sessionTtlHours: config.sessionTtlHours,
+    kidsNames: config.kidsNames,
+    model: config.model,
+  });
+}
