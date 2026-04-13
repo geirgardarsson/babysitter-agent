@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { spawn } from 'child_process';
 
 export function buildSystemPrompt({ kidsNames, allContent }) {
   return `You are a warm, reassuring family helper for the babysitter. You help take care of ${kidsNames.join(' and ')}.
@@ -31,18 +31,29 @@ export function buildConversationPrompt(systemPrompt, messages) {
 
 export function claudePrint(systemPrompt, conversationPrompt) {
   return new Promise((resolve, reject) => {
-    const child = execFile(
-      'claude',
-      ['--print', '--system-prompt', systemPrompt],
-      { maxBuffer: 1024 * 1024, timeout: 120000 },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(`claude --print failed: ${error.message}`));
-          return;
-        }
-        resolve(stdout.trim());
+    const child = spawn('claude', ['--print', '--system-prompt', systemPrompt], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 120000,
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => { stdout += data; });
+    child.stderr.on('data', (data) => { stderr += data; });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`claude --print exited with code ${code}: ${stderr}`));
+        return;
       }
-    );
+      resolve(stdout.trim());
+    });
+
+    child.on('error', (err) => {
+      reject(new Error(`claude --print failed to start: ${err.message}`));
+    });
+
     child.stdin.write(conversationPrompt);
     child.stdin.end();
   });

@@ -89,6 +89,16 @@ export async function createApp(options) {
       res.json({ reply: result.reply });
     } catch (err) {
       console.error('Chat error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.' });
+      }
+    }
+  });
+
+  // Global error handler
+  app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+    if (!res.headersSent) {
       res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.' });
     }
   });
