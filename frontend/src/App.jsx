@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ChatMessages from './components/ChatMessages.jsx';
 import ChatInput from './components/ChatInput.jsx';
 import { sendChatMessage } from './utils/api.js';
@@ -11,16 +11,15 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const messagesRef = useRef(null);
 
-  const scrollToBottom = useCallback(() => {
+  useEffect(() => {
     messagesRef.current?.scrollToBottom();
-  }, []);
+  }, [messages]);
 
   async function sendMessage(text) {
     setMessages((prev) => [
       ...prev,
       { id: nextId++, role: 'user', html: escapeHtml(text) },
     ]);
-    scrollToBottom();
     setLoading(true);
 
     try {
@@ -34,10 +33,9 @@ export default function App() {
         ...prev,
         { id: nextId++, role: 'assistant', html: '<em>Villa kom upp. Reyndu aftur.</em>' },
       ]);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-    scrollToBottom();
   }
 
   return (
