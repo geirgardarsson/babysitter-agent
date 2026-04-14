@@ -2,7 +2,7 @@ import { useRef, forwardRef, useImperativeHandle } from 'react';
 import MessageBubble from './MessageBubble.jsx';
 import LoadingDots from './LoadingDots.jsx';
 
-const ChatMessages = forwardRef(function ChatMessages({ messages, loading }, ref) {
+const ChatMessages = forwardRef(function ChatMessages({ messages = [], loading }, ref) {
   const containerRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
@@ -11,7 +11,7 @@ const ChatMessages = forwardRef(function ChatMessages({ messages, loading }, ref
         containerRef.current.scrollTop = containerRef.current.scrollHeight;
       }
     },
-  }));
+  }), []);
 
   return (
     <main id="chat-messages" ref={containerRef}>
