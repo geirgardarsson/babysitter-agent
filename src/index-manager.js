@@ -9,6 +9,31 @@ export class IndexManager {
     this.db = db;
     this.contentDir = path.resolve(contentDir);
     this.watcher = null;
+    this.indexingPaused = false;
+    this.pendingPaths = new Set();
+    this.pendingDeletes = new Set();
+  }
+
+  pauseIndexing() {
+    this.indexingPaused = true;
+  }
+
+  async resumeAndSync() {
+    this.indexingPaused = false;
+
+    for (const relativePath of this.pendingDeletes) {
+      this.db.removeIndexEntry(relativePath);
+    }
+    this.pendingDeletes.clear();
+
+    for (const filePath of this.pendingPaths) {
+      await this.indexFile(filePath).catch(err => {
+        console.error(`Failed to re-index ${filePath}:`, err.message);
+      });
+    }
+    this.pendingPaths.clear();
+
+    await this.fullSync();
   }
 
   async indexFile(filePath) {
@@ -55,20 +80,33 @@ export class IndexManager {
     });
 
     this.watcher.on('add', (filePath) => {
-      if (filePath.endsWith('.md')) this.indexFile(filePath).catch(err => {
-        console.error(`Failed to index new file ${filePath}:`, err.message);
-      });
+      if (!filePath.endsWith('.md')) return;
+      if (this.indexingPaused) {
+        this.pendingPaths.add(filePath);
+      } else {
+        this.indexFile(filePath).catch(err => {
+          console.error(`Failed to index new file ${filePath}:`, err.message);
+        });
+      }
     });
 
     this.watcher.on('change', (filePath) => {
-      if (filePath.endsWith('.md')) this.indexFile(filePath).catch(err => {
-        console.error(`Failed to re-index ${filePath}:`, err.message);
-      });
+      if (!filePath.endsWith('.md')) return;
+      if (this.indexingPaused) {
+        this.pendingPaths.add(filePath);
+      } else {
+        this.indexFile(filePath).catch(err => {
+          console.error(`Failed to re-index ${filePath}:`, err.message);
+        });
+      }
     });
 
     this.watcher.on('unlink', (filePath) => {
-      if (filePath.endsWith('.md')) {
-        const relativePath = path.relative(this.contentDir, filePath);
+      if (!filePath.endsWith('.md')) return;
+      const relativePath = path.relative(this.contentDir, filePath);
+      if (this.indexingPaused) {
+        this.pendingDeletes.add(relativePath);
+      } else {
         this.db.removeIndexEntry(relativePath);
       }
     });

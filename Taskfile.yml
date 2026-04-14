@@ -1,0 +1,87 @@
+version: '3'
+
+tasks:
+
+  # ── Development ────────────────────────────────────────────────────────────
+
+  dev:
+    desc: Start backend and frontend dev servers together
+    deps: [dev:backend, dev:frontend]
+
+  dev:backend:
+    desc: Start Express with auto-restart on file changes
+    cmd: node --watch src/server.js
+
+  dev:frontend:
+    desc: Start Vite dev server (hot reload, proxies /api to :3456)
+    dir: frontend
+    cmd: npm run dev
+
+  # ── Production ─────────────────────────────────────────────────────────────
+
+  start:
+    desc: Start production server (serves pre-built frontend)
+    cmd: node src/server.js
+
+  build:
+    desc: Build frontend into src/public/
+    dir: frontend
+    cmd: npm run build
+
+  build:preview:
+    desc: Build frontend and preview the production bundle
+    dir: frontend
+    cmd: npm run build && npm run preview
+
+  # ── Testing ────────────────────────────────────────────────────────────────
+
+  test:
+    desc: Run test suite once
+    cmd: npm test
+
+  test:watch:
+    desc: Run tests in watch mode
+    cmd: npm run test:watch
+
+  # ── Install ────────────────────────────────────────────────────────────────
+
+  install:
+    desc: Install dependencies for backend and frontend
+    deps: [install:backend, install:frontend]
+
+  install:backend:
+    desc: Install backend npm dependencies
+    cmd: npm install
+
+  install:frontend:
+    desc: Install frontend npm dependencies
+    dir: frontend
+    cmd: npm install
+
+  # ── Docker ─────────────────────────────────────────────────────────────────
+
+  docker:up:
+    desc: Build and start the app in Docker
+    cmd: docker compose up --build
+
+  docker:down:
+    desc: Stop Docker containers
+    cmd: docker compose down
+
+  docker:logs:
+    desc: Tail Docker container logs
+    cmd: docker compose logs -f
+
+  # ── Content ────────────────────────────────────────────────────────────────
+
+  content:init:
+    desc: Seed content/ from content-example/ (safe — skips existing files)
+    cmd: |
+      cp -rn content-example/. content/ && echo "Content seeded from content-example/" || echo "content/ already populated, nothing copied."
+
+  # ── Database ───────────────────────────────────────────────────────────────
+
+  db:reset:
+    desc: Delete the SQLite database (data will be re-created on next start)
+    prompt: This deletes data/babysitter.db — are you sure?
+    cmd: rm -f data/babysitter.db && echo "Database deleted."

@@ -2,7 +2,7 @@ import { useRef, forwardRef, useImperativeHandle } from 'react';
 import MessageBubble from './MessageBubble.jsx';
 import LoadingDots from './LoadingDots.jsx';
 
-const ChatMessages = forwardRef(function ChatMessages({ messages = [], loading }, ref) {
+const ChatMessages = forwardRef(function ChatMessages({ messages = [], loading, emptyMessage }, ref) {
   const containerRef = useRef(null);
 
   useImperativeHandle(ref, () => ({
@@ -18,7 +18,7 @@ const ChatMessages = forwardRef(function ChatMessages({ messages = [], loading }
       {messages.length === 0 && (
         <div className="message assistant">
           <div className="bubble">
-            Hæ! Ég er hér til að hjálpa þér með allt sem snýr að börnunum og heimilinu. Spurðu mig um hvað sem er!
+            {emptyMessage ?? 'Hæ! Ég er hér til að hjálpa þér með allt sem snýr að börnunum og heimilinu. Spurðu mig um hvað sem er!'}
           </div>
         </div>
       )}

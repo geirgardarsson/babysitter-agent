@@ -1,10 +1,13 @@
+import fs from 'fs';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
+import multer from 'multer';
 import { createDb } from './db.js';
 import { IndexManager } from './index-manager.js';
 import { buildSystemPrompt, handleChatTurn } from './chat.js';
+import { buildParentSystemPrompt, handleParentTurn, applyFileOps } from './parent-chat.js';
 import { loadConfig } from './config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +23,42 @@ export async function createApp(options) {
 
   const app = express();
   app.use(express.json());
+
+  // Multer for image uploads — saves to content/images/
+  const imagesDir = path.join(path.resolve(contentDir), 'images');
+  const upload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        fs.mkdirSync(imagesDir, { recursive: true });
+        cb(null, imagesDir);
+      },
+      filename: (req, file, cb) => {
+        // Sanitise: keep alphanumeric, dots, hyphens, underscores
+        const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+        cb(null, safe);
+      },
+    }),
+    fileFilter: (req, file, cb) => {
+      const allowed = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, allowed.has(ext));
+    },
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  });
+
+  // Parent idle timer — re-indexes content after inactivity
+  const PARENT_IDLE_MS = 10 * 60 * 1000;
+  let parentIdleTimer = null;
+
+  function resetParentIdleTimer() {
+    indexManager.pauseIndexing();
+    clearTimeout(parentIdleTimer);
+    parentIdleTimer = setTimeout(async () => {
+      await indexManager.resumeAndSync().catch(err => {
+        console.error('Error during post-parent-session re-index:', err.message);
+      });
+    }, PARENT_IDLE_MS);
+  }
 
   // Database
   const db = createDb(dbPath);
@@ -124,6 +163,95 @@ export async function createApp(options) {
     res.json({ id });
   });
 
+  // ── Parent (foreldrar) session middleware ────────────────────────────────────
+  app.use('/api/foreldrar', (req, res, next) => {
+    let sessionId = parseCookie(req.headers.cookie, 'parent_session_id');
+    if (!sessionId || !db.getSession(sessionId)) {
+      sessionId = uuidv4();
+      db.createSession(sessionId);
+      res.setHeader('Set-Cookie', `parent_session_id=${sessionId}; Path=/; HttpOnly; SameSite=Lax`);
+    }
+    req.parentSessionId = sessionId;
+    next();
+  });
+
+  // Parent chat endpoint
+  app.post('/api/foreldrar/chat', async (req, res) => {
+    const { message, uploadedImages = [] } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'Message is required.' });
+    }
+
+    resetParentIdleTimer();
+
+    try {
+      const session = db.getSession(req.parentSessionId);
+      let history = session.messages;
+      const MAX_MESSAGES = 50;
+      if (history.length > MAX_MESSAGES) {
+        history = history.slice(-MAX_MESSAGES);
+      }
+
+      // Append image context to user message if images were uploaded
+      let userContent = message;
+      if (uploadedImages.length > 0) {
+        userContent += `\n\n[Myndir sem voru hlaðnar upp: ${uploadedImages.join(', ')}]`;
+      }
+
+      const messages = [...history, { role: 'user', content: userContent }];
+
+      const systemPrompt = buildParentSystemPrompt({
+        allContent: indexManager.getAllContent(),
+      });
+
+      const { displayReply, fileOps } = await handleParentTurn({ systemPrompt, messages });
+
+      const filesWritten = applyFileOps(fileOps, contentDir);
+
+      db.appendMessage(req.parentSessionId, { role: 'user', content: userContent });
+      db.appendMessage(req.parentSessionId, { role: 'assistant', content: displayReply });
+
+      res.json({ reply: displayReply, filesWritten });
+    } catch (err) {
+      console.error('Parent chat error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.' });
+      }
+    }
+  });
+
+  // Parent image upload
+  app.post('/api/foreldrar/upload', upload.single('image'), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image uploaded.' });
+    }
+    resetParentIdleTimer();
+    const imagePath = `/content/images/${req.file.filename}`;
+    res.json({ path: imagePath });
+  });
+
+  // Parent session endpoints
+  app.get('/api/foreldrar/sessions/current', (req, res) => {
+    const session = db.getSession(req.parentSessionId);
+    res.json({ id: req.parentSessionId, messages: session?.messages ?? [] });
+  });
+
+  app.post('/api/foreldrar/sessions/new', (req, res) => {
+    const id = uuidv4();
+    db.createSession(id);
+    res.setHeader('Set-Cookie', `parent_session_id=${id}; Path=/; HttpOnly; SameSite=Lax`);
+    res.json({ id });
+  });
+
+  // SPA fallback — serve index.html for all non-API routes (e.g. /foreldrar)
+  const publicDir = path.join(__dirname, 'public');
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/content')) {
+      return res.sendFile(path.join(publicDir, 'index.html'));
+    }
+    next();
+  });
+
   // Global error handler
   app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
@@ -171,7 +299,6 @@ const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolv
 if (isMain) {
   const config = loadConfig();
   const dataDir = './data';
-  const fs = await import('fs');
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
   createApp({
