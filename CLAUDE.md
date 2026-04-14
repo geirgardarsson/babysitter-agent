@@ -5,7 +5,7 @@ A Claude-powered web chatbot that helps babysitters care for kids, backed by a p
 ## Commands
 
 - `npm start` — Start the server (serves the pre-built frontend from `src/public/`)
-- `npm run dev` — Start with file watching (auto-restart on code changes)
+- `npm run dev` — Start Express with file watching (auto-restart on code changes; Express only — also run `cd frontend && npm run dev` for frontend hot-reload)
 - `npm test` — Run tests
 - `npm run test:watch` — Run tests in watch mode
 - `KIDS_NAMES='["Anna","Bjarki"]' npm start` — Start with kids' names configured
@@ -14,6 +14,7 @@ A Claude-powered web chatbot that helps babysitters care for kids, backed by a p
 
 The frontend lives in `frontend/` and is built with Vite + React.
 
+- `cd frontend && npm install` — Install frontend dependencies (required once after cloning)
 - `cd frontend && npm run dev` — Start Vite dev server at `http://localhost:5173` (proxies `/api/*` to Express on 3456)
 - `cd frontend && npm run build` — Build to `src/public/` (what Express serves)
 
