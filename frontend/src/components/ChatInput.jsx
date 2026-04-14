@@ -3,13 +3,15 @@ import { useState, useRef, useEffect } from 'react';
 export default function ChatInput({ onSubmit, loading }) {
   const [value, setValue] = useState('');
   const inputRef = useRef(null);
+  const didMountRef = useRef(false);
 
   useEffect(() => {
+    didMountRef.current = true;
     inputRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    if (!loading) {
+    if (didMountRef.current && !loading) {
       inputRef.current?.focus();
     }
   }, [loading]);
