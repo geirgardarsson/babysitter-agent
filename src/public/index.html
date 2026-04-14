@@ -1,62 +1,13 @@
 <!DOCTYPE html>
 <html lang="is">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fjölskylduaðstoð</title>
-  <link rel="stylesheet" href="/style.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <script defer src="/app.js"></script>
-</head>
-<body>
-  <div id="chat-app" x-data="chatApp()">
-    <header>
-      <h1>Fjölskylduaðstoð</h1>
-      <p class="subtitle" x-text="subtitle"></p>
-    </header>
-
-    <main id="chat-messages" x-ref="messages">
-      <!-- Welcome message -->
-      <template x-if="messages.length === 0">
-        <div class="message assistant">
-          <div class="bubble">
-            Hæ! Ég er hér til að hjálpa þér með allt sem snýr að börnunum og heimilinu. Spurðu mig um hvað sem er!
-          </div>
-        </div>
-      </template>
-
-      <!-- Chat messages -->
-      <template x-for="msg in messages" :key="msg.id">
-        <div class="message" :class="msg.role">
-          <div class="bubble" x-html="msg.html"></div>
-        </div>
-      </template>
-
-      <!-- Loading indicator -->
-      <template x-if="loading">
-        <div class="message assistant">
-          <div class="bubble loading">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
-          </div>
-        </div>
-      </template>
-    </main>
-
-    <footer>
-      <form @submit.prevent="sendMessage">
-        <input
-          type="text"
-          x-model="userInput"
-          placeholder="Skrifaðu spurningu..."
-          :disabled="loading"
-          x-ref="textbox"
-          autocomplete="off"
-        >
-        <button type="submit" :disabled="loading || !userInput.trim()">Senda</button>
-      </form>
-    </footer>
-  </div>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fjölskylduaðstoð</title>
+    <script type="module" crossorigin src="/assets/index-BICFGQVf.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DfzFLo0K.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
 </html>
