@@ -125,7 +125,7 @@ export default function App() {
         </button>
         <div className="header-avatar">🏠</div>
         <div className="header-text">
-          <h1>Fjölskylduaðstoð</h1>
+          <h1>Fjölskylduvélmennið</h1>
           <div className="subtitle">Aðstoðarmaður fyrir barnvörður</div>
         </div>
       </header>
