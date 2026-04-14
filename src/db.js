@@ -17,9 +17,19 @@ export function createDb(dbPath) {
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
       messages TEXT NOT NULL DEFAULT '[]',
-      created_at DATETIME DEFAULT (datetime('now'))
+      created_at DATETIME DEFAULT (datetime('now')),
+      updated_at DATETIME DEFAULT (datetime('now'))
     );
   `);
+
+  // Migration: add updated_at to existing DBs
+  const hasUpdatedAt = raw.prepare(
+    "SELECT COUNT(*) as n FROM pragma_table_info('sessions') WHERE name = 'updated_at'"
+  ).get().n > 0;
+  if (!hasUpdatedAt) {
+    raw.exec('ALTER TABLE sessions ADD COLUMN updated_at DATETIME');
+    raw.exec('UPDATE sessions SET updated_at = created_at');
+  }
 
   return {
     raw,
@@ -84,8 +94,25 @@ export function createDb(dbPath) {
 
     appendMessage(sessionId, message) {
       raw.prepare(
-        "UPDATE sessions SET messages = json_insert(messages, '$[#]', json(?)) WHERE id = ?"
+        "UPDATE sessions SET messages = json_insert(messages, '$[#]', json(?)), updated_at = datetime('now') WHERE id = ?"
       ).run(JSON.stringify(message), sessionId);
+    },
+
+    listSessions() {
+      const rows = raw.prepare(
+        "SELECT id, created_at, updated_at, messages FROM sessions ORDER BY COALESCE(updated_at, created_at) DESC"
+      ).all();
+      return rows.map(row => {
+        const messages = JSON.parse(row.messages);
+        const firstUserMsg = messages.find(m => m.role === 'user');
+        return {
+          id: row.id,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at ?? row.created_at,
+          messageCount: messages.length,
+          preview: firstUserMsg ? firstUserMsg.content.slice(0, 100) : null,
+        };
+      });
     },
 
     deleteExpiredSessions(ttlHours) {

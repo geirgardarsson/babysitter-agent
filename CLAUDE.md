@@ -18,7 +18,7 @@ The frontend lives in `frontend/` and is built with Vite + React.
 - `cd frontend && npm run dev` — Start Vite dev server at `http://localhost:5173` (proxies `/api/*` to Express on 3456)
 - `cd frontend && npm run build` — Build to `src/public/` (what Express serves)
 
-**Dev setup:** Run both `npm start` (Express) and `cd frontend && npm run dev` (Vite) simultaneously.
+**Dev setup:** Run both `npm run dev` (Express, auto-restarts on changes) and `cd frontend && npm run dev` (Vite) simultaneously. Use `npm start` only for production — it does not watch for changes, so backend edits require a manual restart.
 
 ## Architecture
 
@@ -57,6 +57,34 @@ Environment variables (or `.env` file):
 ## Testing
 
 Tests use Vitest. Run with `npm test`. Tests mock `claude --print` calls — no CLI needed to run tests.
+
+After adding or modifying API routes, smoke-test them before considering the work done:
+
+```bash
+# Start server in background, then curl the new endpoints
+node src/server.js &
+sleep 1
+curl -s http://localhost:3456/api/your-new-route
+kill %1
+```
+
+## SQLite migrations
+
+The DB schema is in `src/db.js`. `CREATE TABLE IF NOT EXISTS` does not modify existing tables, so new columns require an explicit migration.
+
+**Always check before altering** — SQLite rejects `ALTER TABLE ADD COLUMN` with non-constant defaults (e.g. `datetime('now')` is not allowed). Use this pattern:
+
+```js
+const hasCol = raw.prepare(
+  "SELECT COUNT(*) as n FROM pragma_table_info('table') WHERE name = 'col'"
+).get().n > 0;
+if (!hasCol) {
+  raw.exec('ALTER TABLE table ADD COLUMN col DATETIME');
+  raw.exec('UPDATE table SET col = created_at'); // backfill if needed
+}
+```
+
+Never use `try/catch` to swallow migration errors — silent failures leave the schema broken.
 
 ## Style guidelines
 

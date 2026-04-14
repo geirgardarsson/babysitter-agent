@@ -95,6 +95,35 @@ export async function createApp(options) {
     }
   });
 
+  // List all sessions (for sidebar)
+  app.get('/api/sessions', (req, res) => {
+    res.json(db.listSessions());
+  });
+
+  // Get current session messages (for page load)
+  app.get('/api/sessions/current', (req, res) => {
+    const session = db.getSession(req.sessionId);
+    res.json({ id: req.sessionId, messages: session?.messages ?? [] });
+  });
+
+  // Create a new session and switch to it
+  app.post('/api/sessions/new', (req, res) => {
+    const id = uuidv4();
+    db.createSession(id);
+    res.setHeader('Set-Cookie', `session_id=${id}; Path=/; HttpOnly; SameSite=Lax`);
+    res.json({ id });
+  });
+
+  // Activate (switch to) an existing session
+  app.post('/api/sessions/:id/activate', (req, res) => {
+    const { id } = req.params;
+    if (!db.getSession(id)) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    res.setHeader('Set-Cookie', `session_id=${id}; Path=/; HttpOnly; SameSite=Lax`);
+    res.json({ id });
+  });
+
   // Global error handler
   app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
