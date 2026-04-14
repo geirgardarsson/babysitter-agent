@@ -4,11 +4,20 @@ A Claude-powered web chatbot that helps babysitters care for kids, backed by a p
 
 ## Commands
 
-- `npm start` — Start the server
+- `npm start` — Start the server (serves the pre-built frontend from `src/public/`)
 - `npm run dev` — Start with file watching (auto-restart on code changes)
 - `npm test` — Run tests
 - `npm run test:watch` — Run tests in watch mode
 - `KIDS_NAMES='["Anna","Bjarki"]' npm start` — Start with kids' names configured
+
+### Frontend development
+
+The frontend lives in `frontend/` and is built with Vite + React.
+
+- `cd frontend && npm run dev` — Start Vite dev server at `http://localhost:5173` (proxies `/api/*` to Express on 3456)
+- `cd frontend && npm run build` — Build to `src/public/` (what Express serves)
+
+**Dev setup:** Run both `npm start` (Express) and `cd frontend && npm run dev` (Vite) simultaneously.
 
 ## Architecture
 
@@ -22,7 +31,8 @@ The app uses `claude --print` (Claude Code CLI) as its AI backend — no API key
 - `src/db.js` — SQLite layer (content index + chat sessions)
 - `src/indexer.js` — Scans markdown files, extracts metadata, generates summaries via `claude --print`
 - `src/index-manager.js` — Persistent index + chokidar file watcher
-- `src/public/` — Frontend (vanilla HTML/CSS/JS + Alpine.js)
+- `src/public/` — Built frontend (React + Vite output, do not edit directly)
+- `frontend/` — React + Vite frontend source
 
 ### Data flow
 
@@ -52,7 +62,7 @@ Tests use Vitest. Run with `npm test`. Tests mock `claude --print` calls — no 
 - ES modules (`import`/`export`), not CommonJS
 - No TypeScript — vanilla JS
 - Tests live in `tests/` mirroring `src/` structure
-- Frontend: no build step, no bundler, Alpine.js for reactivity
+- Frontend: React + Vite (build output in `src/public/`, source in `frontend/`)
 - UI text is in Icelandic
 
 ## Content directory
