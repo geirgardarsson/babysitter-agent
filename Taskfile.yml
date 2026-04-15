@@ -28,6 +28,13 @@ tasks:
     dir: frontend
     cmd: npm run build
 
+  deploy:
+    desc: Build frontend, sync to Pi, install deps, and restart service
+    cmds:
+      - task: build
+      - rsync -av --exclude='node_modules' --exclude='.git' --exclude='frontend/node_modules' --exclude='data/' ./ geir@192.168.1.88:~/agent-babysitter/
+      - ssh geir@192.168.1.88 'cd ~/agent-babysitter && npm ci --omit=dev && sudo systemctl restart agent-babysitter'
+
   build:preview:
     desc: Build frontend and preview the production bundle
     dir: frontend
