@@ -53,6 +53,9 @@ Environment variables (or `.env` file):
 | `CONTENT_DIR` | `./content` | Path to markdown content folder |
 | `SESSION_TTL_HOURS` | `24` | Chat session expiry |
 | `KIDS_NAMES` | `[]` | JSON array or comma-separated names |
+| `CLAUDE_CODE_OAUTH_TOKEN` | — | OAuth token for `claude --print` auth (required on Pi) |
+
+**Auth gotcha:** If `ANTHROPIC_API_KEY` is also set in the environment, it overrides `CLAUDE_CODE_OAUTH_TOKEN` and causes a "Credit balance is too low" error. Keep only the OAuth token in the Pi's `.env`. The token lives on the Pi at `~/auto-checklists/.env.agent`.
 
 ## Testing
 
@@ -100,4 +103,36 @@ Parents manage `content/` directly — the app never writes to it. Markdown file
 
 ## Deployment
 
-Designed for Raspberry Pi at `wandersail.local:3456`. Can run via Docker (`docker compose up`) or directly (`npm start`). The `claude` CLI must be available on PATH.
+Designed for Raspberry Pi at `wandersail.local:3456` (`192.168.1.88`). Runs directly via systemd (not Docker — the app spawns `claude --print` which needs host auth).
+
+### First-time deploy
+
+```bash
+# 1. Build frontend if changed
+cd frontend && npm run build && cd ..
+
+# 2. Sync to Pi (excludes node_modules, .git, data)
+rsync -av --exclude='node_modules' --exclude='.git' --exclude='frontend/node_modules' --exclude='data/' ./ geir@192.168.1.88:~/agent-babysitter/
+
+# 3. Install dependencies on Pi
+ssh geir@192.168.1.88 "cd ~/agent-babysitter && npm ci --omit=dev"
+```
+
+The systemd service (`/etc/systemd/system/agent-babysitter.service`) is already installed and enabled. It starts automatically on boot.
+
+### Subsequent deploys
+
+Steps 1–3 above, then restart the service:
+
+```bash
+ssh geir@192.168.1.88 "sudo systemctl restart agent-babysitter"
+```
+
+### Useful systemd commands (on Pi)
+
+```bash
+sudo systemctl status agent-babysitter    # check if running
+sudo journalctl -u agent-babysitter -f    # tail logs
+sudo systemctl restart agent-babysitter   # restart
+sudo systemctl stop agent-babysitter      # stop
+```
