@@ -11,7 +11,7 @@
     "dev": "node --watch src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "cd frontend && npm run build && cd .. && rsync -av --exclude='node_modules' --exclude='.git' --exclude='frontend/node_modules' --exclude='data/' ./ geir@192.168.1.88:~/agent-babysitter/ && ssh geir@192.168.1.88 'cd ~/agent-babysitter && npm ci --omit=dev && sudo systemctl restart agent-babysitter'"
+    "deploy": "cd frontend && npm run build && cd .. && rsync -av --exclude='node_modules' --exclude='.git' --exclude='frontend/node_modules' --exclude='data/' --exclude='.env' ./ geir@192.168.1.88:~/agent-babysitter/ && ssh geir@192.168.1.88 'cd ~/agent-babysitter && npm ci --omit=dev && sudo systemctl restart agent-babysitter'"
   },
   "keywords": [],
   "author": "",

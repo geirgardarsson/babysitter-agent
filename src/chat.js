@@ -62,6 +62,14 @@ export function claudePrint(systemPrompt, conversationPrompt) {
   });
 }
 
+export async function checkClaudeAuth() {
+  try {
+    await claudePrint('You are a test assistant.', 'Human: ping\n\nAssistant:');
+  } catch (err) {
+    throw new Error(`Claude CLI auth check failed: ${err.message}`);
+  }
+}
+
 export async function handleChatTurn({ systemPrompt, messages }) {
   const conversationPrompt = buildConversationPrompt(systemPrompt, messages);
   const reply = await claudePrint(systemPrompt, conversationPrompt);

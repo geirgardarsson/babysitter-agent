@@ -111,8 +111,8 @@ Designed for Raspberry Pi at `wandersail.local:3456` (`192.168.1.88`). Runs dire
 # 1. Build frontend if changed
 cd frontend && npm run build && cd ..
 
-# 2. Sync to Pi (excludes node_modules, .git, data)
-rsync -av --exclude='node_modules' --exclude='.git' --exclude='frontend/node_modules' --exclude='data/' ./ geir@192.168.1.88:~/agent-babysitter/
+# 2. Sync to Pi (excludes node_modules, .git, data, .env — Pi has its own .env with CLAUDE_CODE_OAUTH_TOKEN)
+rsync -av --exclude='node_modules' --exclude='.git' --exclude='frontend/node_modules' --exclude='data/' --exclude='.env' ./ geir@192.168.1.88:~/agent-babysitter/
 
 # 3. Install dependencies on Pi
 ssh geir@192.168.1.88 "cd ~/agent-babysitter && npm ci --omit=dev"

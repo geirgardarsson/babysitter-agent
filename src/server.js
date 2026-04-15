@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import multer from 'multer';
 import { createDb } from './db.js';
 import { IndexManager } from './index-manager.js';
-import { buildSystemPrompt, handleChatTurn } from './chat.js';
+import { buildSystemPrompt, handleChatTurn, checkClaudeAuth } from './chat.js';
 import { buildParentSystemPrompt, handleParentTurn, applyFileOps } from './parent-chat.js';
 import { loadConfig } from './config.js';
 
@@ -129,7 +129,7 @@ export async function createApp(options) {
     } catch (err) {
       console.error('Chat error:', err);
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.' });
+        res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.', detail: err?.message });
       }
     }
   });
@@ -215,7 +215,7 @@ export async function createApp(options) {
     } catch (err) {
       console.error('Parent chat error:', err);
       if (!res.headersSent) {
-        res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.' });
+        res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.', detail: err?.message });
       }
     }
   });
@@ -256,7 +256,7 @@ export async function createApp(options) {
   app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.' });
+      res.status(500).json({ error: 'Villa kom upp. Reyndu aftur.', detail: err?.message });
     }
   });
 
@@ -301,11 +301,19 @@ if (isMain) {
   const dataDir = './data';
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-  createApp({
-    port: config.port,
-    contentDir: config.contentDir,
-    dbPath: path.join(dataDir, 'babysitter.db'),
-    sessionTtlHours: config.sessionTtlHours,
-    kidsNames: config.kidsNames,
+  console.log('Checking Claude CLI auth...');
+  checkClaudeAuth().then(() => {
+    console.log('Claude CLI auth OK.');
+    return createApp({
+      port: config.port,
+      contentDir: config.contentDir,
+      dbPath: path.join(dataDir, 'babysitter.db'),
+      sessionTtlHours: config.sessionTtlHours,
+      kidsNames: config.kidsNames,
+    });
+  }).catch((err) => {
+    console.error(`Startup failed: ${err.message}`);
+    console.error('Hint: ensure CLAUDE_CODE_OAUTH_TOKEN is set and ANTHROPIC_API_KEY is not set alongside it.');
+    process.exit(1);
   });
 }
