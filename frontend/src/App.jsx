@@ -29,9 +29,10 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesRef = useRef(null);
 
+  // Scroll to bottom on new messages AND when loading dots appear/disappear
   useEffect(() => {
     messagesRef.current?.scrollToBottom();
-  }, [messages]);
+  }, [messages, loading]);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -42,7 +43,6 @@ export default function App() {
     }
   }, []);
 
-  // On mount: load current session and session list
   useEffect(() => {
     async function init() {
       try {
@@ -60,7 +60,6 @@ export default function App() {
   async function sendMessage(text) {
     setMessages(prev => [...prev, { id: nextId++, role: 'user', html: escapeHtml(text) }]);
     setLoading(true);
-
     try {
       const data = await sendChatMessage(text);
       setMessages(prev => [
@@ -109,10 +108,13 @@ export default function App() {
   }
 
   return (
-    <div id="chat-app">
-      <header>
+    <div
+      id="chat-app"
+      className="flex flex-col w-full sm:max-w-[760px] h-full sm:h-[min(720px,90vh)] sm:rounded-[18px] overflow-hidden relative bg-[#faf6f1] sm:shadow-[0_24px_64px_rgba(0,0,0,0.22),_0_4px_16px_rgba(0,0,0,0.10)]"
+    >
+      <header className="flex items-center gap-3 px-5 py-3.5 flex-shrink-0 bg-gradient-to-br from-[#d96a38] to-[#8c3a16]">
         <button
-          className="sidebar-toggle"
+          className="text-white/80 hover:text-white hover:bg-white/15 transition-all p-1.5 rounded-lg flex items-center justify-center flex-shrink-0 cursor-pointer"
           onClick={() => setSidebarOpen(o => !o)}
           aria-label={sidebarOpen ? 'Loka sögu' : 'Opna sögu'}
           title={sidebarOpen ? 'Loka sögu' : 'Opna sögu'}
@@ -123,26 +125,33 @@ export default function App() {
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <div className="header-avatar">🏠</div>
-        <div className="header-text">
-          <h1>Fjölskylduvélmennið</h1>
-          <div className="subtitle">Aðstoðarmaður fyrir barnvörður</div>
+        <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-xl flex-shrink-0 select-none">
+          🏠
+        </div>
+        <div>
+          <h1 className="text-[1.05rem] font-semibold tracking-tight text-white leading-tight">Fjölskylduvélmennið</h1>
+          <div className="text-xs text-white/70 mt-0.5">Aðstoðarmaður fyrir barnvörður</div>
         </div>
       </header>
 
-      <div className="chat-body">
-        {sidebarOpen && (
-          <SessionSidebar
-            sessions={sessions}
-            activeId={activeSessionId}
-            onSelect={handleSelectSession}
-            onNew={handleNewChat}
-            loading={loading}
-          />
-        )}
-        <div className="chat-main">
+      <div className="flex flex-row flex-1 overflow-hidden relative min-h-0">
+        {/* Sidebar: always rendered, width-animated to avoid layout jumps */}
+        <SessionSidebar
+          open={sidebarOpen}
+          sessions={sessions}
+          activeId={activeSessionId}
+          onSelect={handleSelectSession}
+          onNew={handleNewChat}
+          loading={loading}
+        />
+
+        <div className="flex-1 flex flex-col overflow-hidden relative min-w-0">
+          {/* Overlay only needed on mobile where sidebar floats over the chat */}
           {sidebarOpen && (
-            <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+            <div
+              className="absolute inset-0 z-[5] bg-black/25 sm:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
           )}
           <ChatMessages ref={messagesRef} messages={messages} loading={loading} />
           <ChatInput onSubmit={sendMessage} loading={loading} />

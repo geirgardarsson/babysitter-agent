@@ -22,8 +22,8 @@ export default function ParentPage() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [pendingImages, setPendingImages] = useState([]); // [{ file, path, previewUrl }]
-  const [toast, setToast] = useState(null); // string or null
+  const [pendingImages, setPendingImages] = useState([]);
+  const [toast, setToast] = useState(null);
   const messagesRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -31,7 +31,7 @@ export default function ParentPage() {
 
   useEffect(() => {
     messagesRef.current?.scrollToBottom();
-  }, [messages]);
+  }, [messages, loading]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -67,7 +67,6 @@ export default function ParentPage() {
 
     for (const file of files) {
       const previewUrl = URL.createObjectURL(file);
-      // Optimistically add to pending
       const tempId = nextId++;
       setPendingImages(prev => [...prev, { id: tempId, file, path: null, previewUrl }]);
 
@@ -99,7 +98,6 @@ export default function ParentPage() {
 
     const uploadedPaths = pendingImages.filter(i => i.path).map(i => i.path);
 
-    // Clear input immediately
     setInputValue('');
     setPendingImages(prev => {
       prev.forEach(i => URL.revokeObjectURL(i.previewUrl));
@@ -153,16 +151,20 @@ export default function ParentPage() {
   const canSubmit = !loading && (inputValue.trim().length > 0 || pendingImages.length > 0);
 
   return (
-    <div id="chat-app">
-      <header>
-        <div className="header-avatar">👨‍👩‍👧‍👦</div>
-        <div className="header-text">
-          <h1>Foreldrar</h1>
-          <div className="subtitle">Uppfærðu upplýsingar um heimilið</div>
+    <div
+      id="chat-app"
+      className="flex flex-col w-full sm:max-w-[760px] h-full sm:h-[min(720px,90vh)] sm:rounded-[18px] overflow-hidden relative bg-[#faf6f1] sm:shadow-[0_24px_64px_rgba(0,0,0,0.22),_0_4px_16px_rgba(0,0,0,0.10)]"
+    >
+      <header className="flex items-center gap-3 px-5 py-3.5 flex-shrink-0 bg-gradient-to-br from-[#d96a38] to-[#8c3a16]">
+        <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-xl flex-shrink-0 select-none">
+          👨‍👩‍👧‍👦
+        </div>
+        <div className="flex-1">
+          <h1 className="text-[1.05rem] font-semibold tracking-tight text-white leading-tight">Foreldrar</h1>
+          <div className="text-xs text-white/70 mt-0.5">Uppfærðu upplýsingar um heimilið</div>
         </div>
         <button
-          className="new-chat-btn"
-          style={{ marginLeft: 'auto', width: 'auto', padding: '0.4rem 0.85rem' }}
+          className="flex items-center px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-sm rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-0"
           onClick={handleNewChat}
           disabled={loading}
         >
@@ -170,18 +172,23 @@ export default function ParentPage() {
         </button>
       </header>
 
-      <div className="chat-body">
-        <div className="chat-main">
-          <ChatMessages ref={messagesRef} messages={messages} loading={loading} emptyMessage="Hæ! Segðu mér hvað þú vilt skrá um heimilið eða börnin." />
+      <div className="flex flex-row flex-1 overflow-hidden relative min-h-0">
+        <div className="flex-1 flex flex-col overflow-hidden relative min-w-0">
+          <ChatMessages
+            ref={messagesRef}
+            messages={messages}
+            loading={loading}
+            emptyMessage="Hæ! Segðu mér hvað þú vilt skrá um heimilið eða börnin."
+          />
 
           {pendingImages.length > 0 && (
-            <div className="image-preview-strip">
+            <div className="flex gap-2 px-5 pt-2 pb-0 flex-wrap bg-white border-t border-[#e4d4c4]">
               {pendingImages.map(img => (
-                <div key={img.id} className="image-preview-item">
-                  <img src={img.previewUrl} alt="" />
-                  {!img.path && <div className="image-preview-uploading" />}
+                <div key={img.id} className="relative w-[60px] h-[60px] rounded-lg overflow-hidden border-[1.5px] border-[#e4d4c4] flex-shrink-0 mb-2">
+                  <img src={img.previewUrl} alt="" className="w-full h-full object-cover block" />
+                  {!img.path && <div className="image-uploading" />}
                   <button
-                    className="image-preview-remove"
+                    className="absolute top-0.5 right-0.5 w-[18px] h-[18px] rounded-full bg-black/55 text-white border-0 cursor-pointer text-xs flex items-center justify-center p-0 leading-none"
                     onClick={() => removePendingImage(img.id)}
                     aria-label="Fjarlægja mynd"
                   >×</button>
@@ -190,19 +197,19 @@ export default function ParentPage() {
             </div>
           )}
 
-          <footer>
-            <form onSubmit={handleSubmit}>
+          <footer className="px-5 py-3.5 border-t border-[#e4d4c4] bg-white/70 backdrop-blur-sm flex-shrink-0">
+            <form className="flex gap-2.5 items-center" onSubmit={handleSubmit}>
               <input
                 type="file"
                 accept="image/*"
                 multiple
                 ref={fileInputRef}
-                style={{ display: 'none' }}
+                className="hidden"
                 onChange={handleImageSelect}
               />
               <button
                 type="button"
-                className="attach-btn"
+                className="w-10 h-10 rounded-full border-[1.5px] border-[#e4d4c4] bg-transparent text-[#b09880] hover:border-[#d96a38] hover:text-[#d96a38] flex items-center justify-center flex-shrink-0 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
                 aria-label="Hlaða upp mynd"
@@ -220,8 +227,15 @@ export default function ParentPage() {
                 disabled={loading}
                 ref={inputRef}
                 autoComplete="off"
+                // text-base = 16px, prevents iOS viewport zoom on focus
+                className="flex-1 px-4 py-2.5 border-[1.5px] border-[#e4d4c4] rounded-full text-base font-[inherit] outline-none bg-[#faf6f1] text-[#1c1612] placeholder:text-[#b0a494] focus:border-[#d96a38] focus:bg-white transition-colors disabled:opacity-60"
               />
-              <button type="submit" className="send-btn" disabled={!canSubmit} aria-label="Senda">
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                aria-label="Senda"
+                className="w-10 h-10 rounded-full border-0 bg-gradient-to-br from-[#d96a38] to-[#a84e1e] text-white flex items-center justify-center flex-shrink-0 cursor-pointer transition-all hover:from-[#b85220] hover:to-[#8c3818] hover:scale-[1.05] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 shadow-sm"
+              >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13" />
                   <polygon points="22 2 15 22 11 13 2 9 22 2" />
@@ -233,7 +247,9 @@ export default function ParentPage() {
       </div>
 
       {toast && (
-        <div className="parent-toast">{toast}</div>
+        <div className="toast-enter absolute bottom-[5.5rem] left-1/2 -translate-x-1/2 bg-[#a84e1e] text-white px-4 py-2 rounded-full text-[0.82rem] whitespace-nowrap pointer-events-none shadow-md z-20">
+          {toast}
+        </div>
       )}
     </div>
   );
